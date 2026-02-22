@@ -44,11 +44,11 @@ header{
   display:flex;align-items:center;justify-content:space-between;
   padding:0 32px 0 29px;position:fixed;top:0;left:0;right:0;z-index:300
 }
-.brand{display:flex;align-items:center;gap:0;line-height:1}
+.brand{display:flex;center;gap:0;line-height:1}
 .brand a{text-decoration:nonei;display:flex;align-items:center}
-.brand-img{height:20px;width:auto;display:block}
-.brand-divider{width:1px;height:14px;background:var(--border);margin:0 18px}
-.brand-sub{font-size:.55rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);align-self:center;padding-top:1px}
+.brand-logo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.04em;color:var(--white)}
+.brand-img{height:32px;width:auto;display:block}
+.brand-sub{font-size:.6rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
 .hpills{display:flex;align-items:center}
 .hp{display:flex;align-items:center;gap:8px;padding:0 14px;border-left:1px solid var(--border)}
 .hp:first-child{border-left:none}
@@ -266,7 +266,7 @@ header{
 }
 .login-screen.out{opacity:0;transform:translateY(-12px);pointer-events:none}
 .login-box{width:100%;max-width:340px}
-.login-logo-img{height:20px;width:auto;display:block;margin-bottom:8px}
+.login-logo-img{height:56px;width:auto;display:block;margin-bottom:8px}
 .login-sub{font-size:.6rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:36px}
 .login-field{margin-bottom:12px}
 .login-field label{display:block;font-size:.58rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
@@ -342,7 +342,7 @@ header{
 <div class="login-screen" id="loginScreen">
   <div class="login-accent"></div>
   <div class="login-box">
-    <img src="/logo.png" alt="HIGHLANDMEDIA" class="login-logo-img">
+    <img src="/icon-192.png" alt="HIGHLANDMEDIA" class="login-logo-img">
     <div class="login-sub">Equipment Inventory</div>
     <div class="login-field">
       <label>Username</label>
@@ -362,7 +362,7 @@ header{
 <header>
   <div class="brand">
     <a href="https://www.highlandmediaservices.com">
-      <img src="/logo.png" alt="HIGHLANDMEDIA" class="brand-img">
+      <img src="/icon-192.png" alt="HighlandMedia" class="brand-img">
     </a>
     <div class="brand-divider"></div>
     <span class="brand-sub">Equipment Inventory</span>
@@ -643,8 +643,7 @@ async function addAsset(mob=false){
   const body={name,category:document.getElementById(p+'Cat').value,subcategory:document.getElementById(p+'Sub').value,quantity:qty,quantity_available:isNaN(avail)?qty:avail,replacement_value:parseFloat(document.getElementById(p+'Replace').value)||0,purchase_cost:parseFloat(document.getElementById(p+'Cost').value)||0,purchase_date:document.getElementById(p+'Date').value||'',condition:document.getElementById(p+'Cond').value||'good',location:document.getElementById(p+'Loc')?.value?.trim()||'',notes:document.getElementById(p+'Notes').value.trim()};
   try{
     await api('/api/assets',{method:'POST',body:JSON.stringify(body)});
-     ['Name','Id','Avail','Replace','Cost','Notes','Low','Date'].forEach(f=>{const e=document.getElementById(p+f);if(e)e.value='';});
-document.getElementById(p+'Qty').value='1';   
+    ['Name','Id','Qty','Avail','Replace','Cost','Notes','Low','Date'].forEach(f=>{const e=document.getElementById(p+f);if(e)e.value='';});
     const l=document.getElementById(p+'Loc');if(l)l.value='';
     pickCat(mob?'mCatGrid':'catGrid','audio',p+'Cat',p+'Sub');
     pickCond(mob?'mCondGrid':'condGrid','excellent');
