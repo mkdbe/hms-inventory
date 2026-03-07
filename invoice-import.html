@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<title>HighlandMedia — Invoice Import</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0a;--bg2:#0f0f0f;--surf:#111111;--surf2:#181818;--surf3:#1e1e1e;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.04);--red:#c0392b;--red2:#e04030;--white:#ffffff;--off:#e8e4dd;--muted:rgba(232,228,221,0.38);--muted2:rgba(232,228,221,0.18);--good:#3aaa74;--warn:#d4922a}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--off);min-height:100vh}
+.accent-line{position:fixed;left:0;top:0;bottom:0;width:3px;background:var(--red);z-index:400}
+header{height:58px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px 0 29px;position:sticky;top:0;z-index:300}
+.brand{display:flex;align-items:center;line-height:1}.brand a{text-decoration:none;display:flex;align-items:center}.brand-img{height:20px;width:auto;display:block}.brand-divider{width:1px;height:14px;background:var(--border);margin:0 18px}.brand-sub{font-size:.55rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);padding-top:1px}
+.back-link{font-size:.6rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .15s;display:flex;align-items:center;gap:6px}.back-link:hover{color:var(--white)}
+.container{max-width:1200px;margin:0 auto;padding:24px 28px 60px}
+.upload-panel{background:var(--surf);border:1px solid var(--border);padding:28px 32px;margin-bottom:24px}
+.upload-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.1em;color:var(--red);margin-bottom:8px}
+.upload-desc{font-size:13px;font-weight:300;color:var(--muted);max-width:700px;line-height:1.5;margin-bottom:20px}
+.upload-sources{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.src-tag{font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--border);color:var(--muted)}
+.drop-zone{border:2px dashed var(--border);padding:40px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+.drop-zone:hover,.drop-zone.over{border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.03)}
+.drop-zone-text{font-size:14px;color:var(--muted);font-weight:300;margin-bottom:8px}
+.drop-zone-sub{font-size:12px;color:var(--muted2);font-weight:300}
+.drop-zone input{display:none}
+.processing{display:none;text-align:center;padding:20px;color:var(--muted);font-size:13px;font-weight:300}
+.processing.on{display:block}
+
+.results-panel{display:none;margin-bottom:24px}
+.results-panel.on{display:block}
+.results-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.results-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.1em;color:var(--white)}
+.results-meta{font-size:12px;font-weight:300;color:var(--muted)}
+.warn-msg{background:rgba(212,146,42,.08);border:1px solid rgba(212,146,42,.3);color:var(--warn);padding:10px 14px;font-size:12px;font-weight:400;margin-bottom:12px}
+
+.item-table{width:100%;border-collapse:collapse}
+.item-table th{background:var(--surf2);border:1px solid var(--border);padding:8px 12px;font-size:.55rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);text-align:left}
+.item-table td{border:1px solid var(--border2);padding:8px 12px;font-size:13px;background:var(--surf);vertical-align:middle}
+.item-table tr.excluded td{opacity:.3}
+.item-table input[type="text"],.item-table input[type="number"],.item-table select{background:var(--surf3);border:1px solid var(--border);padding:5px 8px;color:var(--off);font-family:'Barlow',sans-serif;font-size:12px;outline:none;width:100%}
+.item-table input:focus,.item-table select:focus{border-color:rgba(192,57,43,.5)}
+.item-table select{-webkit-appearance:none}
+.item-table select option{background:var(--surf3)}
+.item-cb{accent-color:var(--red);width:15px;height:15px;cursor:pointer}
+
+.import-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
+.import-btn{background:var(--red);color:var(--white);border:none;padding:13px 28px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:background .15s}.import-btn:hover{background:var(--red2)}.import-btn:disabled{opacity:.4;cursor:not-allowed}
+.import-count{font-size:13px;color:var(--muted);font-weight:300}
+.sel-btns{display:flex;gap:6px}
+.sel-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 10px;font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s}.sel-btn:hover{color:var(--white);border-color:rgba(192,57,43,.5)}
+
+.toast{position:fixed;bottom:20px;right:20px;background:var(--red);color:var(--white);padding:9px 16px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.14em;text-transform:uppercase;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:999}.toast.on{opacity:1;transform:translateY(0)}
+
+@media(max-width:900px){.container{padding:14px 12px 60px}.upload-panel{padding:18px}header{padding:0 14px 0 11px;height:50px}.brand-img{height:26px}.brand-divider{margin:0 10px}.item-table{display:block;overflow-x:auto}}
+</style>
+</head>
+<body>
+
+<div class="accent-line"></div>
+<header>
+  <div class="brand"><a href="/"><img src="/logo.png" alt="HIGHLANDMEDIA" class="brand-img"></a><div class="brand-divider"></div><span class="brand-sub">Invoice Import</span></div>
+  <a href="/" class="back-link">← Back to Inventory</a>
+</header>
+
+<div class="container">
+  <div class="upload-panel">
+    <div class="upload-title">Import from Invoice PDF</div>
+    <div class="upload-desc">
+      Upload an invoice PDF to extract items and add them to your inventory.
+      Items are auto-categorized and you can review/edit before importing.
+    </div>
+    <div class="upload-sources">
+      <span class="src-tag">B&H Photo</span>
+      <span class="src-tag">Amazon</span>
+      <span class="src-tag">eBay</span>
+      <span class="src-tag">PayPal / Reverb</span>
+      <span class="src-tag">Best Buy</span>
+      <span class="src-tag">MPB</span>
+      <span class="src-tag">Generic Vendor</span>
+    </div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-zone-text">Drop a PDF here or click to browse</div>
+      <div class="drop-zone-sub">Supports invoices from the sources listed above</div>
+      <input type="file" id="fileInput" accept=".pdf" onchange="handleFile(this.files[0])">
+    </div>
+    <div class="processing" id="processing">Parsing invoice…</div>
+  </div>
+
+  <div class="results-panel" id="resultsPanel">
+    <div class="results-hdr">
+      <div>
+        <div class="results-title" id="resultsTitle">Extracted Items</div>
+        <div class="results-meta" id="resultsMeta"></div>
+      </div>
+      <div class="sel-btns">
+        <button class="sel-btn" onclick="selectAll(true)">Select All</button>
+        <button class="sel-btn" onclick="selectAll(false)">Deselect All</button>
+      </div>
+    </div>
+    <div id="warningArea"></div>
+    <table class="item-table">
+      <thead>
+        <tr>
+          <th style="width:30px"></th>
+          <th>Name</th>
+          <th style="width:140px">Category</th>
+          <th style="width:50px">Qty</th>
+          <th style="width:90px">Cost $</th>
+          <th style="width:90px">Date</th>
+          <th style="width:100px">Condition</th>
+        </tr>
+      </thead>
+      <tbody id="itemsBody"></tbody>
+    </table>
+    <div class="import-bar">
+      <div class="import-count" id="importCount">0 items selected</div>
+      <button class="import-btn" id="importBtn" onclick="doImport()">Import Selected</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let TAXONOMY = {};
+let parsedItems = [];
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (r.status === 401) { window.location.href = '/'; throw new Error('Unauthorized'); }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+(async function() {
+  try { TAXONOMY = await api('/api/taxonomy'); } catch {}
+})();
+
+// Drag and drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+
+async function handleFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+    showToast('Please upload a PDF file');
+    return;
+  }
+
+  document.getElementById('processing').classList.add('on');
+  document.getElementById('resultsPanel').classList.remove('on');
+
+  const formData = new FormData();
+  formData.append('pdf', file);
+
+  try {
+    const r = await fetch('/api/invoice/parse', { method: 'POST', body: formData });
+    if (r.status === 401) { window.location.href = '/'; return; }
+    if (!r.ok) throw new Error(await r.text());
+    const result = await r.json();
+
+    parsedItems = result.items || [];
+    renderItems(result);
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+
+  document.getElementById('processing').classList.remove('on');
+}
+
+function renderItems(result) {
+  const panel = document.getElementById('resultsPanel');
+  panel.classList.add('on');
+
+  document.getElementById('resultsTitle').textContent =
+    `${parsedItems.length} Item${parsedItems.length !== 1 ? 's' : ''} from ${(result.source || 'Unknown').toUpperCase()}`;
+  document.getElementById('resultsMeta').textContent = result.orderNumber ? `Order: ${result.orderNumber}` : '';
+
+  const warn = document.getElementById('warningArea');
+  warn.innerHTML = result.warning ? `<div class="warn-msg">${esc(result.warning)}</div>` : '';
+
+  // Build category options
+  const catOpts = Object.entries(TAXONOMY).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+
+  const tbody = document.getElementById('itemsBody');
+  tbody.innerHTML = parsedItems.map((item, i) => {
+    const catKey = item.category || 'audio';
+    return `<tr data-idx="${i}">
+      <td><input type="checkbox" class="item-cb" checked data-idx="${i}" onchange="updateCount()"></td>
+      <td><input type="text" value="${escAttr(item.name)}" data-field="name" data-idx="${i}"></td>
+      <td><select data-field="category" data-idx="${i}" onchange="updateItemCat(${i}, this.value)">${catOpts.replace(`value="${catKey}"`, `value="${catKey}" selected`)}</select></td>
+      <td><input type="number" value="${item.quantity || 1}" min="1" style="width:45px" data-field="quantity" data-idx="${i}"></td>
+      <td><input type="number" value="${(item.price || item.purchase_cost || 0).toFixed(2)}" min="0" step="0.01" data-field="price" data-idx="${i}"></td>
+      <td><input type="date" value="${item.purchase_date || ''}" data-field="purchase_date" data-idx="${i}"></td>
+      <td><select data-field="condition" data-idx="${i}">
+        <option value="excellent">Excellent</option>
+        <option value="good" selected>Good</option>
+        <option value="fair">Fair</option>
+        <option value="poor">Poor</option>
+      </select></td>
+    </tr>`;
+  }).join('');
+
+  updateCount();
+}
+
+function updateItemCat(idx, catKey) {
+  parsedItems[idx].category = catKey;
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('.item-cb').forEach(cb => cb.checked = checked);
+  updateCount();
+}
+
+function updateCount() {
+  const checked = document.querySelectorAll('.item-cb:checked').length;
+  document.getElementById('importCount').textContent = checked + ' item' + (checked !== 1 ? 's' : '') + ' selected';
+
+  // Dim unchecked rows
+  document.querySelectorAll('.item-cb').forEach(cb => {
+    cb.closest('tr').classList.toggle('excluded', !cb.checked);
+  });
+}
+
+async function doImport() {
+  const btn = document.getElementById('importBtn');
+  const rows = document.querySelectorAll('.item-cb:checked');
+  if (!rows.length) { showToast('No items selected'); return; }
+
+  // Gather data from the table inputs
+  const items = [];
+  rows.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx);
+    const tr = cb.closest('tr');
+    const get = field => tr.querySelector(`[data-field="${field}"]`)?.value || '';
+
+    items.push({
+      name: get('name'),
+      category: get('category'),
+      subcategory: parsedItems[idx]?.subcategory || '',
+      quantity: parseInt(get('quantity')) || 1,
+      purchase_cost: parseFloat(get('price')) || 0,
+      replacement_value: 0,
+      purchase_date: get('purchase_date'),
+      condition: get('condition'),
+      notes: parsedItems[idx]?.notes || '',
+      location: ''
+    });
+  });
+
+  btn.disabled = true;
+  btn.textContent = 'Importing…';
+
+  try {
+    const result = await api('/api/invoice/import', {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    });
+    showToast(`${result.imported} item(s) imported`);
+    document.getElementById('resultsPanel').classList.remove('on');
+    document.getElementById('fileInput').value = '';
+    parsedItems = [];
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+
+  btn.textContent = 'Import Selected';
+  btn.disabled = false;
+}
+
+function fmt(n) { return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function escAttr(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
+
+let toastT;
+function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+</script>
+</body>
+</html>
