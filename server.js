@@ -342,6 +342,34 @@ app.get('/api/export', (req, res) => {
 
 // ── B&H Price Check (Serper.dev) ─────────────────────────────────────────────
 
+function cleanSearchQuery(name) {
+  let q = name;
+  q = q.replace(/^\(\d+\s*(?:pcs?|packs?|pieces?|sets?|pairs?)\)\s*/i, '');
+  q = q.replace(/^\d+\s+(?:x\s+)?(?=\w)/i, '');
+  if (/^\d+(\.\d+)?\s*(mm|ft|in|"|'|cm|m)\b/i.test(name) && !q.match(/^\d/)) q = name;
+  q = q.replace(/\((?:\d+\s*(?:pcs?|packs?|pieces?|sets?|pairs?|ft|feet|inch))[^)]*\)/gi, '');
+  q = q.replace(/\((?:male|female|black|white|silver|gray|grey|blue|red|green)[^)]*\)/gi, '');
+  q = q.replace(/\((?:\d+-pack|\d+\s*pack)\)/gi, '');
+  q = q.replace(/\((?:USB-?C?|Type-?C?)[^)]*\)/gi, '');
+  q = q.replace(/\([^)]{25,}\)/g, '');
+  q = q.replace(/\s+[A-Z]\d{4,}\s*$/i, '');
+  q = q.replace(/\s+[A-Z]{2,3}\d{2,}[A-Z]{1,}[A-Z0-9]*(?:\/[A-Z])?\s*$/i, '');
+  q = q.replace(/\s*\([A-Z]{2,3}\d{2}[A-Z0-9]*(?:\/[A-Z])?\)\s*/gi, ' ');
+  q = q.replace(/\s*-\s*$/, '');
+  const commas = (q.match(/,/g) || []).length;
+  if (commas >= 2) q = q.split(',')[0].trim();
+  q = q.replace(/,\s*$/, '').trim();
+  q = q.replace(/\b\d+K?@\d+Hz\b/gi, '');
+  q = q.replace(/^(?:used|refurbished|pre-owned|open box)\s+/i, '');
+  q = q.replace(/\b(?:Nylon\s+Braid(?:ed)?|Tangle-Free|Ultra-Slim)\b/gi, '');
+  q = q.replace(/\s{2,}/g, ' ').trim();
+  q = q.replace(/[,\-\.]\s*$/, '').trim();
+  q = q.replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').trim();
+  if (q.length < 5) q = name.trim();
+  if (q.length > 80) q = q.substring(0, 60).replace(/\s+\S*$/, '').trim();
+  return q;
+}
+
 function serperSearch(query, type = 'search') {
   if (!SERPER_API_KEY) {
     return Promise.reject(new Error('SERPER_API_KEY not set'));
@@ -378,10 +406,11 @@ function serperSearch(query, type = 'search') {
 
 async function searchBHPrice(query) {
   try {
-    const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const cleaned = cleanSearchQuery(query);
+    const qWords = cleaned.toLowerCase().split(/\s+/).filter(w => w.length > 2);
 
     // Step 1: Google Shopping for price
-    const shopResult = await serperSearch(query, 'shopping');
+    const shopResult = await serperSearch(cleaned, 'shopping');
     const shopItems = (shopResult.shopping || []);
 
     let bestShopItem = null;
@@ -414,7 +443,7 @@ async function searchBHPrice(query) {
     let bhProductUrl = '';
     let bhProductName = '';
 
-    const bhResult = await serperSearch('site:bhphotovideo.com/c/product ' + query);
+    const bhResult = await serperSearch('site:bhphotovideo.com/c/product ' + cleaned);
     const bhOrganic = (bhResult.organic || []);
 
     for (const item of bhOrganic) {
@@ -596,6 +625,234 @@ app.post('/api/price-check/retry-not-found', (req, res) => {
 app.get('/price-check', (req, res) => {
   if (!isAuthenticated(req)) return res.redirect('/');
   res.sendFile(path.join(__dirname, 'price-check.html'));
+});
+
+// ── Invoice Import ───────────────────────────────────────────────────────────
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const { parseInvoice, categorizeItem } = require('./invoice-parser');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.post('/api/import/parse-batch', upload.array('invoices', 20), async (req, res) => {
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files uploaded' });
+  const results = [];
+  for (const file of req.files) {
+    try {
+      const pdf = await pdfParse(file.buffer);
+      const result = parseInvoice(pdf.text);
+      for (const item of result.items) {
+        if (!item.category) {
+          const cat = categorizeItem(item.name);
+          item.category = cat.category;
+          item.subcategory = cat.subcategory;
+        }
+      }
+      results.push({
+        filename: file.originalname,
+        source: result.source,
+        orderNumber: result.orderNumber || '',
+        purchaseDate: result.purchaseDate || '',
+        items: result.items,
+        warning: result.warning || '',
+        rawText: pdf.text.substring(0, 3000)
+      });
+    } catch (e) {
+      results.push({ filename: file.originalname, error: e.message, items: [] });
+    }
+  }
+  res.json({ results });
+});
+
+app.post('/api/import/commit', (req, res) => {
+  const { items } = req.body;
+  if (!items || !items.length) return res.status(400).json({ error: 'No items' });
+
+  const inserted = [];
+  const merged = [];
+  const errors = [];
+
+  const tx = db.transaction(() => {
+    for (const item of items) {
+      try {
+        if (!item.name?.trim()) continue;
+        const qty = parseInt(item.quantity) || 1;
+        const cost = parseFloat(item.purchase_cost) || parseFloat(item.price) || 0;
+
+        if (item._mergeIntoId) {
+          // Merge into existing asset
+          const existing = db.prepare('SELECT * FROM assets WHERE id=?').get(item._mergeIntoId);
+          if (existing) {
+            const newQty = existing.quantity + qty;
+            const newAvail = existing.quantity_available + qty;
+            const bestReplace = Math.max(existing.replacement_value, parseFloat(item.replacement_value) || 0);
+            const bestCost = Math.max(existing.purchase_cost, cost);
+            const combinedNotes = [existing.notes, item.notes].filter(Boolean).join(' | ');
+            db.prepare(`UPDATE assets SET quantity=?, quantity_available=?, replacement_value=?, purchase_cost=?, notes=?, updated_at=datetime('now') WHERE id=?`)
+              .run(newQty, newAvail, bestReplace, bestCost, combinedNotes, item._mergeIntoId);
+            db.prepare("INSERT INTO activity_log (asset_id,action,detail,qty_change) VALUES (?,'qty_update',?,?)")
+              .run(item._mergeIntoId, `Merged from invoice: qty ${existing.quantity}→${newQty}`, qty);
+            merged.push({ id: item._mergeIntoId, name: existing.name });
+            continue;
+          }
+        }
+
+        // Insert as new
+        const r = db.prepare(`
+          INSERT INTO assets (name, category, subcategory, quantity, quantity_available,
+            replacement_value, purchase_cost, purchase_date, condition, location, notes)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        `).run(
+          item.name.trim(),
+          item.category || 'audio',
+          item.subcategory || '',
+          qty, qty,
+          parseFloat(item.replacement_value) || 0,
+          cost,
+          item.purchase_date || '',
+          item.condition || 'good',
+          item.location || '',
+          item.notes || ''
+        );
+        db.prepare("INSERT INTO activity_log (asset_id,action,detail,qty_change) VALUES (?,'added',?,?)")
+          .run(r.lastInsertRowid, `Imported: ${item.name.trim()}`, qty);
+        inserted.push({ id: r.lastInsertRowid, name: item.name.trim() });
+      } catch (e) {
+        errors.push({ name: item.name, error: e.message });
+      }
+    }
+  });
+  tx();
+
+  res.json({ inserted, merged, errors });
+});
+
+// ── Duplicate Finder ─────────────────────────────────────────────────────────
+
+function normalizeForCompare(name) {
+  return name.toLowerCase()
+    .replace(/[^a-z0-9.\s]/g, ' ')  // strip punctuation but keep periods (for model numbers)
+    .replace(/\b(used|refurbished|pre-owned|open box|new)\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function getTokens(str) {
+  return normalizeForCompare(str).split(/\s+/).filter(w => w.length > 1);
+}
+
+function similarity(a, b) {
+  const tokA = getTokens(a);
+  const tokB = getTokens(b);
+  if (!tokA.length || !tokB.length) return 0;
+  const setA = new Set(tokA);
+  const setB = new Set(tokB);
+  let shared = 0;
+  for (const t of setA) if (setB.has(t)) shared++;
+  // Must share at least 3 tokens to even consider
+  if (shared < 3) return 0;
+  // Jaccard similarity: shared / union
+  const union = new Set([...setA, ...setB]).size;
+  return shared / union;
+}
+
+app.get('/api/duplicates', (req, res) => {
+  const assets = db.prepare('SELECT * FROM assets ORDER BY category, LOWER(name)').all();
+  const threshold = 0.55; // Jaccard similarity — stricter than min-set
+  const groups = [];
+  const used = new Set();
+
+  for (let i = 0; i < assets.length; i++) {
+    if (used.has(assets[i].id)) continue;
+    const matches = [];
+
+    for (let j = i + 1; j < assets.length; j++) {
+      if (used.has(assets[j].id)) continue;
+      // Must be same category
+      if (assets[i].category !== assets[j].category) continue;
+
+      const sim = similarity(assets[i].name, assets[j].name);
+      if (sim >= threshold) {
+        matches.push({ ...assets[j], similarity: Math.round(sim * 100) });
+        used.add(assets[j].id);
+      }
+    }
+
+    if (matches.length > 0) {
+      used.add(assets[i].id);
+      groups.push({
+        primary: assets[i],
+        duplicates: matches
+      });
+    }
+  }
+
+  res.json({ groups, totalGroups: groups.length });
+});
+
+app.post('/api/duplicates/merge', (req, res) => {
+  const { primaryId, mergeIds } = req.body;
+  if (!primaryId || !mergeIds || !mergeIds.length) {
+    return res.status(400).json({ error: 'primaryId and mergeIds required' });
+  }
+
+  const primary = db.prepare('SELECT * FROM assets WHERE id=?').get(primaryId);
+  if (!primary) return res.status(404).json({ error: 'Primary asset not found' });
+
+  const toMerge = mergeIds.map(id => db.prepare('SELECT * FROM assets WHERE id=?').get(id)).filter(Boolean);
+  if (!toMerge.length) return res.status(400).json({ error: 'No valid merge targets' });
+
+  const tx = db.transaction(() => {
+    let totalQty = primary.quantity;
+    let totalAvail = primary.quantity_available;
+    let bestReplace = primary.replacement_value;
+    let bestCost = primary.purchase_cost;
+    let bestDate = primary.purchase_date || '';
+    const allNotes = [primary.notes].filter(Boolean);
+    const allLocations = [primary.location].filter(Boolean);
+
+    for (const dup of toMerge) {
+      totalQty += dup.quantity;
+      totalAvail += dup.quantity_available;
+      if (dup.replacement_value > bestReplace) bestReplace = dup.replacement_value;
+      if (dup.purchase_cost > bestCost) bestCost = dup.purchase_cost;
+      if (dup.purchase_date && dup.purchase_date > bestDate) bestDate = dup.purchase_date;
+      if (dup.notes && !allNotes.includes(dup.notes)) allNotes.push(dup.notes);
+      if (dup.location && !allLocations.includes(dup.location)) allLocations.push(dup.location);
+
+      // Log the merge
+      db.prepare("INSERT INTO activity_log (asset_id, action, detail) VALUES (?, 'deleted', ?)")
+        .run(dup.id, `Merged into "${primary.name}" (ID ${primaryId})`);
+
+      // Delete price checks for the duplicate
+      db.prepare('DELETE FROM price_checks WHERE asset_id=?').run(dup.id);
+      // Delete the duplicate
+      db.prepare('DELETE FROM assets WHERE id=?').run(dup.id);
+    }
+
+    // Update primary with merged data
+    const combinedNotes = allNotes.join(' | ');
+    const combinedLocation = [...new Set(allLocations)].join(', ');
+
+    db.prepare(`
+      UPDATE assets SET
+        quantity = ?, quantity_available = ?,
+        replacement_value = ?, purchase_cost = ?,
+        purchase_date = ?, notes = ?, location = ?,
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).run(totalQty, totalAvail, bestReplace, bestCost, bestDate, combinedNotes, combinedLocation, primaryId);
+
+    db.prepare("INSERT INTO activity_log (asset_id, action, detail) VALUES (?, 'qty_update', ?)")
+      .run(primaryId, `Merged ${toMerge.length} duplicate(s): qty now ${totalQty}`);
+  });
+  tx();
+
+  res.json({ ok: true, merged: toMerge.length, newQuantity: db.prepare('SELECT quantity FROM assets WHERE id=?').get(primaryId)?.quantity });
+});
+
+app.get('/duplicates', (req, res) => {
+  if (!isAuthenticated(req)) return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'duplicates.html'));
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<title>HighlandMedia — Duplicate Finder</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0a;--bg2:#0f0f0f;--surf:#111111;--surf2:#181818;--surf3:#1e1e1e;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.04);--red:#c0392b;--red2:#e04030;--white:#ffffff;--off:#e8e4dd;--muted:rgba(232,228,221,0.38);--muted2:rgba(232,228,221,0.18);--good:#3aaa74;--warn:#d4922a}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--off);min-height:100vh}
+.accent-line{position:fixed;left:0;top:0;bottom:0;width:3px;background:var(--red);z-index:400}
+header{height:58px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px 0 29px;position:sticky;top:0;z-index:300}
+.brand{display:flex;align-items:center;line-height:1}.brand a{text-decoration:none;display:flex;align-items:center}.brand-img{height:20px;width:auto;display:block}.brand-divider{width:1px;height:14px;background:var(--border);margin:0 18px}.brand-sub{font-size:.55rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);padding-top:1px}
+.back-link{font-size:.6rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .15s;display:flex;align-items:center;gap:6px}.back-link:hover{color:var(--white)}
+.container{max-width:1200px;margin:0 auto;padding:24px 28px 60px}
+.run-panel{background:var(--surf);border:1px solid var(--border);padding:28px 32px;margin-bottom:24px}
+.run-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.1em;color:var(--red);margin-bottom:8px}
+.run-desc{font-size:13px;font-weight:300;color:var(--muted);max-width:700px;line-height:1.5;margin-bottom:20px}
+.run-btn{background:var(--red);color:var(--white);border:none;padding:13px 28px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:background .15s}.run-btn:hover{background:var(--red2)}.run-btn:disabled{opacity:.4;cursor:not-allowed}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+.stat{background:var(--surf);border:1px solid var(--border);padding:14px 16px}
+.stat-v{font-family:'Bebas Neue',sans-serif;font-size:24px;line-height:1;margin-bottom:3px;color:var(--white)}.stat-v.red{color:var(--red)}.stat-v.warn{color:var(--warn)}.stat-v.green{color:var(--good)}
+.stat-l{font-size:.55rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2)}
+.group{background:var(--surf);border:1px solid var(--border);margin-bottom:16px;overflow:hidden}
+.group-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surf2);border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.group-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.group-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.08em;color:var(--white)}
+.group-actions{display:flex;gap:6px;align-items:center}
+.merge-count{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--warn);min-width:50px;text-align:right}
+.merge-btn{background:rgba(58,170,116,.08);border:1px solid rgba(58,170,116,.3);color:var(--good);padding:7px 14px;font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s}.merge-btn:hover{background:rgba(58,170,116,.15);border-color:rgba(58,170,116,.5)}.merge-btn.disabled{opacity:.35;pointer-events:none}
+.skip-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:7px 14px;font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s}.skip-btn:hover{color:var(--off);border-color:rgba(255,255,255,.15)}
+.dup-header{display:grid;grid-template-columns:1fr 0.5fr 0.5fr 0.6fr 0.6fr 0.5fr;gap:0;padding:0 18px;border-bottom:1px solid var(--border)}
+.dup-th{padding:7px 8px;font-size:.55rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2)}
+.dup-row{display:grid;grid-template-columns:1fr 0.5fr 0.5fr 0.6fr 0.6fr 0.5fr;gap:0;padding:0 18px;border-bottom:1px solid var(--border2);align-items:center;cursor:pointer;transition:all .15s;user-select:none}
+.dup-row:last-child{border-bottom:none}
+.dup-row:hover{background:rgba(255,255,255,.02)}
+.dup-row.excluded{opacity:.25}.dup-row.excluded .dup-name{text-decoration:line-through}
+.dup-cell{padding:10px 8px;font-size:13px}
+.dup-name{font-weight:500;color:var(--white)}
+.dup-match{font-size:.55rem;font-weight:600;letter-spacing:.08em;color:var(--warn)}
+.dup-qty{font-family:'Bebas Neue',sans-serif;font-size:16px}
+.dup-money{font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.03em}
+.dup-cond{font-size:.55rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border:1px solid}
+.merge-summary{padding:10px 18px;background:rgba(58,170,116,.04);border-top:1px solid var(--border);font-size:12px;color:var(--muted);font-weight:300}.merge-summary strong{color:var(--off);font-weight:500}
+.empty-msg{padding:48px 24px;text-align:center}.empty-msg h3{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.1em;color:var(--good);margin-bottom:5px}.empty-msg p{font-size:12px;font-weight:300;color:var(--muted2)}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--red);color:var(--white);padding:9px 16px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.14em;text-transform:uppercase;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;z-index:999}.toast.on{opacity:1;transform:translateY(0)}
+.cond-excellent{border-color:rgba(58,170,116,.4);color:var(--good)}.cond-good{border-color:rgba(232,228,221,.2);color:rgba(232,228,221,.6)}.cond-fair{border-color:rgba(212,146,42,.4);color:var(--warn)}.cond-poor{border-color:rgba(192,57,43,.5);color:var(--red2)}
+.ctag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;font-size:.55rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;border:1px solid}.c-audio{border-color:rgba(160,100,255,.3);color:rgba(180,130,255,.8)}.c-video_display{border-color:rgba(192,57,43,.4);color:rgba(220,100,80,.9)}.c-video_production{border-color:rgba(220,80,50,.4);color:rgba(240,120,90,.9)}.c-lighting{border-color:rgba(212,180,0,.3);color:rgba(212,180,0,.85)}.c-livestreaming{border-color:rgba(0,200,180,.3);color:rgba(0,220,200,.8)}.c-photo{border-color:rgba(180,140,255,.3);color:rgba(200,160,255,.8)}.c-staging{border-color:rgba(255,140,60,.3);color:rgba(255,150,80,.8)}.c-computing{border-color:rgba(58,170,116,.3);color:rgba(70,190,130,.8)}.c-cables{border-color:rgba(232,228,221,.15);color:rgba(232,228,221,.45)}.c-consumables{border-color:rgba(100,160,255,.3);color:rgba(120,170,255,.8)}.c-accessories{border-color:rgba(180,180,180,.3);color:rgba(200,200,200,.8)}.c-transport{border-color:rgba(200,120,120,.3);color:rgba(200,130,130,.8)}
+@media(max-width:900px){.container{padding:14px 12px 60px}.stats-row{grid-template-columns:1fr 1fr}.dup-row,.dup-header{grid-template-columns:1fr 0.5fr}.dup-cell:nth-child(n+3){display:none}.dup-th:nth-child(n+3){display:none}.run-panel{padding:18px}header{padding:0 14px 0 11px;height:50px}.brand-img{height:26px}.brand-divider{margin:0 10px}}
+</style>
+</head>
+<body>
+<div class="accent-line"></div>
+<header><div class="brand"><a href="/"><img src="/logo.png" alt="HIGHLANDMEDIA" class="brand-img"></a><div class="brand-divider"></div><span class="brand-sub">Duplicate Finder</span></div><a href="/" class="back-link">← Back to Inventory</a></header>
+<div class="container">
+  <div class="run-panel">
+    <div class="run-title">Find Duplicate Equipment</div>
+    <div class="run-desc">Scans your inventory for items with similar names in the same category. All matches merge by default — click any row to exclude it from the merge. First included item becomes the primary.</div>
+    <button class="run-btn" id="scanBtn" onclick="scanDuplicates()">Scan for Duplicates</button>
+  </div>
+  <div class="stats-row" id="statsRow" style="display:none">
+    <div class="stat"><div class="stat-v warn" id="stGroups">0</div><div class="stat-l">Duplicate Groups</div></div>
+    <div class="stat"><div class="stat-v red" id="stDupes">0</div><div class="stat-l">Total Duplicates</div></div>
+    <div class="stat"><div class="stat-v green" id="stMerged">0</div><div class="stat-l">Merged</div></div>
+  </div>
+  <div id="groupsContainer"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const TAXONOMY={};let groups=[],excluded={},mergedCount=0;
+async function api(u,o={}){const r=await fetch(u,{headers:{'Content-Type':'application/json'},...o});if(r.status===401){window.location.href='/';throw new Error('Unauthorized');}if(!r.ok)throw new Error(await r.text());return r.json();}
+(async function(){try{Object.assign(TAXONOMY,await api('/api/taxonomy'));}catch{}})();
+async function scanDuplicates(){const btn=document.getElementById('scanBtn');btn.disabled=true;btn.textContent='Scanning…';try{const data=await api('/api/duplicates');groups=data.groups;excluded={};for(let i=0;i<groups.length;i++)excluded[i]=new Set();renderGroups();document.getElementById('statsRow').style.display='';document.getElementById('stGroups').textContent=data.totalGroups;document.getElementById('stDupes').textContent=groups.reduce((s,g)=>s+g.duplicates.length,0);btn.textContent='Rescan';btn.disabled=false;}catch(e){showToast('Error: '+e.message);btn.textContent='Scan for Duplicates';btn.disabled=false;}}
+function toggleExclude(gi,id){if(!excluded[gi])excluded[gi]=new Set();if(excluded[gi].has(id))excluded[gi].delete(id);else excluded[gi].add(id);renderGroups();}
+function getIncluded(gi){const g=groups[gi];const all=[g.primary,...g.duplicates];const ex=excluded[gi]||new Set();return all.filter(i=>!ex.has(i.id));}
+function renderGroups(){const c=document.getElementById('groupsContainer');if(!groups.length){c.innerHTML='<div class="empty-msg"><h3>No Duplicates Found</h3><p>Your inventory looks clean.</p></div>';return;}
+c.innerHTML=groups.map((g,gi)=>{const all=[g.primary,...g.duplicates];const cat=TAXONOMY[g.primary.category];const catLabel=cat?cat.icon+' '+cat.label:g.primary.category;const inc=getIncluded(gi);const mc=inc.length;const ex=excluded[gi]||new Set();
+let summary='';if(mc>=2){summary=`<strong>→ Merge ${mc-1} into "${esc(inc[0].name)}"</strong> · Qty: ${inc.reduce((s,i)=>s+i.quantity,0)} · Replace: ${fmt(Math.max(...inc.map(i=>i.replacement_value||0)))}`;} else if(mc===1){summary='<strong>Only 1 item included.</strong> Click excluded rows to include them.';}else{summary='<strong>All items excluded.</strong>';}
+return`<div class="group"><div class="group-hdr"><div class="group-left"><div class="group-title">${esc(g.primary.name)}</div><span class="ctag c-${g.primary.category}">${catLabel}</span></div><div class="group-actions"><span class="merge-count">${mc>=2?mc+' →':''}</span><button class="merge-btn${mc<2?' disabled':''}" onclick="mergeGroup(${gi})">✓ Merge</button><button class="skip-btn" onclick="skipGroup(${gi})">Skip</button></div></div><div class="dup-header"><div class="dup-th">Name</div><div class="dup-th">Match</div><div class="dup-th">Qty</div><div class="dup-th">Cost $</div><div class="dup-th">Replace $</div><div class="dup-th">Condition</div></div>${all.map((item,ii)=>{const isEx=ex.has(item.id);const matchPct=ii===0?'—':(item.similarity||'?')+'%';const cc='cond-'+(item.condition||'good');const cl={excellent:'Exc',good:'Good',fair:'Fair',poor:'Poor'}[item.condition]||item.condition;return`<div class="dup-row${isEx?' excluded':''}" onclick="toggleExclude(${gi},${item.id})"><div class="dup-cell"><span class="dup-name">${esc(item.name)}</span></div><div class="dup-cell"><span class="dup-match">${matchPct}</span></div><div class="dup-cell dup-qty">${item.quantity}</div><div class="dup-cell dup-money">${item.purchase_cost>0?fmt(item.purchase_cost):'—'}</div><div class="dup-cell dup-money">${item.replacement_value>0?fmt(item.replacement_value):'—'}</div><div class="dup-cell"><span class="dup-cond ${cc}">${cl}</span></div></div>`;}).join('')}<div class="merge-summary">${summary}</div></div>`;}).join('');}
+async function mergeGroup(gi){const inc=getIncluded(gi);if(inc.length<2){showToast('Need at least 2 items');return;}const primaryId=inc[0].id;const mergeIds=inc.slice(1).map(i=>i.id);if(!confirm(`Merge ${mergeIds.length} item(s) into "${inc[0].name}"?\n\nQuantities combined, highest replacement value kept, notes merged.`))return;try{const result=await api('/api/duplicates/merge',{method:'POST',body:JSON.stringify({primaryId,mergeIds})});const g=groups[gi];const all=[g.primary,...g.duplicates];const remaining=all.filter(i=>!mergeIds.includes(i.id));if(remaining.length<2){groups.splice(gi,1);delete excluded[gi];}else{g.primary=remaining[0];g.duplicates=remaining.slice(1);if(excluded[gi]){const newEx=new Set();for(const id of excluded[gi]){if(remaining.some(r=>r.id===id))newEx.add(id);}excluded[gi]=newEx;}}const ne={};for(let i=0;i<groups.length;i++)ne[i]=excluded[i]||new Set();excluded=ne;mergedCount+=result.merged;document.getElementById('stGroups').textContent=groups.length;document.getElementById('stDupes').textContent=groups.reduce((s,g)=>s+g.duplicates.length,0);document.getElementById('stMerged').textContent=mergedCount;renderGroups();showToast(`Merged ${result.merged} item(s) — qty now ${result.newQuantity}`);}catch(e){showToast('Error: '+e.message);}}
+function skipGroup(gi){groups.splice(gi,1);delete excluded[gi];const ne={};for(let i=0;i<groups.length;i++)ne[i]=excluded[i]||new Set();excluded=ne;document.getElementById('stGroups').textContent=groups.length;document.getElementById('stDupes').textContent=groups.reduce((s,g)=>s+g.duplicates.length,0);renderGroups();}
+function fmt(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let toastT;function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600);}
+</script>
+</body>
+</html>
