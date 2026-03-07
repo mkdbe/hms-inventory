@@ -10,6 +10,9 @@ const PORT = 3003;
 const AUTH_USER = process.env.HMS_USER || 'REDACTED';
 const AUTH_PASS = process.env.HMS_PASS || 'REDACTED';
 
+// ── Serper API Key ────────────────────────────────────────────────────────────
+const SERPER_API_KEY = process.env.SERPER_API_KEY || '';
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 const sessions = new Map();
 function makeToken() { return crypto.randomBytes(32).toString('hex'); }
@@ -56,6 +59,20 @@ db.exec(`
     detail     TEXT DEFAULT '',
     qty_change REAL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS price_checks (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id       INTEGER NOT NULL,
+    asset_name     TEXT NOT NULL,
+    current_value  REAL NOT NULL DEFAULT 0,
+    proposed_value REAL,
+    source_url     TEXT DEFAULT '',
+    source_name    TEXT DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'pending',
+    batch_id       TEXT NOT NULL,
+    checked_at     TEXT DEFAULT (datetime('now')),
+    resolved_at    TEXT,
+    FOREIGN KEY (asset_id) REFERENCES assets(id)
   );
 `);
 
@@ -273,6 +290,7 @@ app.patch('/api/assets/:id', (req, res) => {
 app.delete('/api/assets/:id', (req, res) => {
   const a = db.prepare('SELECT * FROM assets WHERE id=?').get(req.params.id);
   if (!a) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM price_checks WHERE asset_id=?').run(req.params.id);
   db.prepare('DELETE FROM assets WHERE id=?').run(req.params.id);
   db.prepare("INSERT INTO activity_log (asset_id,action,detail) VALUES (?,'deleted',?)").run(req.params.id, a.name);
   res.json({ ok: true });
@@ -301,17 +319,17 @@ app.get('/api/activity', (req, res) => {
 });
 
 app.get('/api/export', (req, res) => {
-  const rows = [['Name','Category','Subcategory','Total Qty','Available Qty',
-                 'Replacement Value','Total Replacement','Purchase Cost','Total Cost',
+  const rows = [['Name','Category','Subcategory','Qty',
+                 'Unit Cost','Total Cost','Replacement Value','Total Replacement',
                  'Purchase Date','Condition','Location','Notes','Date Added']];
   for (const a of db.prepare('SELECT * FROM assets ORDER BY category,subcategory,LOWER(name)').all()) {
     const cat = TAXONOMY[a.category];
     rows.push([
       a.name,
       cat?.label||a.category, cat?.subs[a.subcategory]||a.subcategory,
-      a.quantity, a.quantity_available,
-      a.replacement_value.toFixed(2), (a.quantity*a.replacement_value).toFixed(2),
+      a.quantity,
       a.purchase_cost.toFixed(2), (a.quantity*a.purchase_cost).toFixed(2),
+      a.replacement_value.toFixed(2), (a.quantity*a.replacement_value).toFixed(2),
       a.purchase_date, CONDITIONS[a.condition]||a.condition,
       a.location, a.notes, a.created_at
     ]);
@@ -320,6 +338,264 @@ app.get('/api/export', (req, res) => {
   res.setHeader('Content-Type','text/csv');
   res.setHeader('Content-Disposition',`attachment; filename="hms-inventory-${new Date().toISOString().slice(0,10)}.csv"`);
   res.send(csv);
+});
+
+// ── B&H Price Check (Serper.dev) ─────────────────────────────────────────────
+
+function serperSearch(query, type = 'search') {
+  if (!SERPER_API_KEY) {
+    return Promise.reject(new Error('SERPER_API_KEY not set'));
+  }
+
+  const postData = JSON.stringify({ q: query, num: 10 });
+  const searchPath = type === 'shopping' ? '/shopping' : '/search';
+
+  return new Promise((resolve, reject) => {
+    const req = require('https').request({
+      hostname: 'google.serper.dev',
+      path: searchPath,
+      method: 'POST',
+      headers: {
+        'X-API-KEY': SERPER_API_KEY,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      },
+      timeout: 15000
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('Failed to parse Serper response')); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Serper request timed out')); });
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function searchBHPrice(query) {
+  try {
+    const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+    // Step 1: Google Shopping for price
+    const shopResult = await serperSearch(query, 'shopping');
+    const shopItems = (shopResult.shopping || []);
+
+    let bestShopItem = null;
+    let bestShopScore = -1;
+
+    for (const item of shopItems) {
+      const price = parseFloat(String(item.price || '').replace(/[$,]/g, '')) || 0;
+      if (price <= 0) continue;
+
+      const nameLower = (item.title || '').toLowerCase();
+      const wordScore = qWords.filter(w => nameLower.includes(w)).length;
+      const isBH = (item.source || '').toLowerCase().includes('b&h') ||
+                    (item.source || '').toLowerCase().includes('bhphoto') ||
+                    (item.link || '').includes('bhphotovideo.com');
+      const score = wordScore + (isBH ? 5 : 0);
+
+      if (score > bestShopScore) {
+        bestShopScore = score;
+        bestShopItem = {
+          name: item.title || '',
+          price: price,
+          url: item.link || '',
+          priceText: '$' + price.toFixed(2),
+          source: item.source || 'Google Shopping'
+        };
+      }
+    }
+
+    // Step 2: B&H site search for product page link
+    let bhProductUrl = '';
+    let bhProductName = '';
+
+    const bhResult = await serperSearch('site:bhphotovideo.com/c/product ' + query);
+    const bhOrganic = (bhResult.organic || []);
+
+    for (const item of bhOrganic) {
+      const link = item.link || '';
+      if (link.includes('bhphotovideo.com/c/product/')) {
+        const nameLower = (item.title || '').toLowerCase();
+        const wordScore = qWords.filter(w => nameLower.includes(w)).length;
+        if (wordScore >= 1 || !bhProductUrl) {
+          bhProductUrl = link;
+          bhProductName = (item.title || '')
+            .replace(/\s*\|?\s*B&H\s*Photo.*$/i, '')
+            .replace(/\s*-\s*B&H\s*Photo.*$/i, '')
+            .trim();
+          if (wordScore >= 2) break;
+        }
+      }
+    }
+
+    // Step 3: Check if organic results have a price
+    let organicItem = null;
+    for (const item of bhOrganic) {
+      let price = 0;
+      if (item.price) {
+        price = parseFloat(String(item.price).replace(/[$,]/g, '')) || 0;
+      }
+      if (!price && item.snippet) {
+        const m = item.snippet.match(/\$([\d,]+\.\d{2})/);
+        if (m) price = parseFloat(m[1].replace(/,/g, '')) || 0;
+      }
+      if (price > 0 && !organicItem) {
+        organicItem = {
+          name: (item.title || '').replace(/\s*\|?\s*B&H.*$/i, '').trim(),
+          price: price,
+          url: item.link || '',
+          priceText: '$' + price.toFixed(2),
+          source: 'B&H Photo'
+        };
+      }
+    }
+
+    // Step 4: Pick the best result
+    let bestMatch = null;
+
+    if (organicItem && organicItem.price > 0) {
+      bestMatch = organicItem;
+      if (bhProductUrl) bestMatch.url = bhProductUrl;
+    } else if (bestShopItem) {
+      bestMatch = bestShopItem;
+    }
+
+    if (bestMatch && bestMatch.price > 0) {
+      const finalUrl = bhProductUrl || bestMatch.url;
+      return {
+        found: true,
+        bestMatch: {
+          name: bestMatch.name,
+          price: bestMatch.price,
+          url: finalUrl,
+          priceText: bestMatch.priceText,
+          source: bestMatch.source || 'B&H Photo'
+        },
+        allResults: [bestMatch],
+        matchScore: 1,
+        queryWords: qWords.length
+      };
+    }
+
+    return {
+      found: false,
+      bestMatch: bhProductUrl ? { name: bhProductName, price: 0, url: bhProductUrl, source: 'B&H Photo' } : null,
+      error: 'No price found'
+    };
+
+  } catch (e) {
+    return { found: false, error: e.message };
+  }
+}
+
+// ── Price Check Routes ───────────────────────────────────────────────────────
+
+app.post('/api/price-check/start', async (req, res) => {
+  const batchId = 'pc_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex');
+  const assets = db.prepare('SELECT id, name, replacement_value FROM assets ORDER BY category, name').all();
+  if (!assets.length) return res.status(400).json({ error: 'No assets in inventory' });
+  db.prepare("DELETE FROM price_checks WHERE status IN ('pending','pending_retry')").run();
+  const insert = db.prepare(`INSERT INTO price_checks (asset_id, asset_name, current_value, status, batch_id) VALUES (?, ?, ?, 'pending', ?)`);
+  const tx = db.transaction(() => { for (const a of assets) { insert.run(a.id, a.name, a.replacement_value, batchId); } });
+  tx();
+  res.json({ batchId, totalItems: assets.length });
+});
+
+app.post('/api/price-check/process-next', async (req, res) => {
+  const next = db.prepare("SELECT * FROM price_checks WHERE status IN ('pending','pending_retry') ORDER BY id LIMIT 1").get();
+  if (!next) return res.json({ done: true });
+
+  try {
+    const result = await searchBHPrice(next.asset_name);
+
+    if (result.found && result.bestMatch.price > 0) {
+      const sourceName = result.bestMatch.source
+        ? result.bestMatch.name + ' (' + result.bestMatch.source + ')'
+        : result.bestMatch.name;
+      db.prepare(`UPDATE price_checks SET proposed_value = ?, source_url = ?, source_name = ?, status = 'found', checked_at = datetime('now') WHERE id = ?`)
+        .run(result.bestMatch.price, result.bestMatch.url, sourceName, next.id);
+    } else {
+      db.prepare(`UPDATE price_checks SET status = 'not_found', checked_at = datetime('now') WHERE id = ?`).run(next.id);
+    }
+
+    const remaining = db.prepare("SELECT COUNT(*) c FROM price_checks WHERE status IN ('pending','pending_retry')").get().c;
+    const total = db.prepare("SELECT COUNT(*) c FROM price_checks WHERE batch_id = ?").get(next.batch_id).c;
+    res.json({ done: false, processed: next.asset_name, found: result.found, price: result.found ? result.bestMatch?.price : null, remaining, total, progress: Math.round(((total - remaining) / total) * 100) });
+  } catch (e) {
+    db.prepare("UPDATE price_checks SET status = 'error', checked_at = datetime('now') WHERE id = ?").run(next.id);
+    const remaining = db.prepare("SELECT COUNT(*) c FROM price_checks WHERE status IN ('pending','pending_retry')").get().c;
+    const total = db.prepare("SELECT COUNT(*) c FROM price_checks WHERE batch_id = ?").get(next.batch_id).c;
+    res.json({ done: false, processed: next.asset_name, found: false, error: e.message, remaining, total, progress: Math.round(((total - remaining) / total) * 100) });
+  }
+});
+
+app.get('/api/price-check/results', (req, res) => {
+  const results = db.prepare(`
+    SELECT pc.*, a.category, a.replacement_value as live_value
+    FROM price_checks pc LEFT JOIN assets a ON a.id = pc.asset_id
+    WHERE pc.status IN ('found', 'not_found', 'error')
+    ORDER BY CASE pc.status WHEN 'found' THEN 0 WHEN 'not_found' THEN 1 ELSE 2 END, ABS(pc.proposed_value - pc.current_value) DESC
+  `).all();
+  const stats = {
+    total: results.length,
+    found: results.filter(r => r.status === 'found').length,
+    notFound: results.filter(r => r.status === 'not_found').length,
+    errors: results.filter(r => r.status === 'error').length,
+    pending: db.prepare("SELECT COUNT(*) c FROM price_checks WHERE status IN ('pending','pending_retry')").get().c
+  };
+  res.json({ results, stats });
+});
+
+app.post('/api/price-check/approve/:id', (req, res) => {
+  const pc = db.prepare('SELECT * FROM price_checks WHERE id = ?').get(req.params.id);
+  if (!pc) return res.status(404).json({ error: 'Not found' });
+  if (pc.status !== 'found') return res.status(400).json({ error: 'No price to approve' });
+  db.prepare("UPDATE assets SET replacement_value = ?, updated_at = datetime('now') WHERE id = ?").run(pc.proposed_value, pc.asset_id);
+  db.prepare("INSERT INTO activity_log (asset_id, action, detail) VALUES (?, 'condition_update', ?)").run(pc.asset_id, `Replacement value updated: $${pc.current_value.toFixed(2)} → $${pc.proposed_value.toFixed(2)} (price check)`);
+  db.prepare("UPDATE price_checks SET status = 'approved', resolved_at = datetime('now') WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/price-check/dismiss/:id', (req, res) => {
+  db.prepare("UPDATE price_checks SET status = 'dismissed', resolved_at = datetime('now') WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/price-check/approve-all', (req, res) => {
+  const found = db.prepare("SELECT * FROM price_checks WHERE status = 'found'").all();
+  const tx = db.transaction(() => {
+    for (const pc of found) {
+      db.prepare("UPDATE assets SET replacement_value = ?, updated_at = datetime('now') WHERE id = ?").run(pc.proposed_value, pc.asset_id);
+      db.prepare("INSERT INTO activity_log (asset_id, action, detail) VALUES (?, 'condition_update', ?)").run(pc.asset_id, `Replacement value: $${pc.current_value.toFixed(2)} → $${pc.proposed_value.toFixed(2)} (bulk price check)`);
+      db.prepare("UPDATE price_checks SET status = 'approved', resolved_at = datetime('now') WHERE id = ?").run(pc.id);
+    }
+  });
+  tx();
+  res.json({ ok: true, approved: found.length });
+});
+
+app.patch('/api/price-check/:id', (req, res) => {
+  const { proposed_value } = req.body;
+  if (proposed_value === undefined) return res.status(400).json({ error: 'proposed_value required' });
+  db.prepare("UPDATE price_checks SET proposed_value = ? WHERE id = ?").run(parseFloat(proposed_value), req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/price-check/retry-not-found', (req, res) => {
+  const count = db.prepare("SELECT COUNT(*) c FROM price_checks WHERE status = 'not_found'").get().c;
+  if (!count) return res.json({ count: 0 });
+  db.prepare("UPDATE price_checks SET status = 'pending_retry' WHERE status = 'not_found'").run();
+  res.json({ count });
+});
+
+app.get('/price-check', (req, res) => {
+  if (!isAuthenticated(req)) return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'price-check.html'));
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));

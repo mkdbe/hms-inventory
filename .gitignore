@@ -23,3 +23,6 @@ Thumbs.db
 *.bak
 *.bak2
 *.backup
+*.pdf
+*.bak*
+inventory.db
