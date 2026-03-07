@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<title>HighlandMedia — Price Check</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0a;--bg2:#0f0f0f;--surf:#111111;--surf2:#181818;--surf3:#1e1e1e;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.04);
+  --red:#c0392b;--red2:#e04030;--white:#ffffff;--off:#e8e4dd;
+  --muted:rgba(232,228,221,0.38);--muted2:rgba(232,228,221,0.18);
+  --good:#3aaa74;--warn:#d4922a;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--off);min-height:100vh}
+
+.accent-line{position:fixed;left:0;top:0;bottom:0;width:3px;background:var(--red);z-index:400}
+
+header{
+  height:58px;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 32px 0 29px;position:sticky;top:0;z-index:300
+}
+.brand{display:flex;align-items:center;gap:0;line-height:1}
+.brand a{text-decoration:none;display:flex;align-items:center}
+.brand-img{height:20px;width:auto;display:block}
+.brand-divider{width:1px;height:14px;background:var(--border);margin:0 18px}
+.brand-sub{font-size:.55rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);padding-top:1px}
+.back-link{font-size:.6rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .15s;display:flex;align-items:center;gap:6px}
+.back-link:hover{color:var(--white)}
+
+.container{max-width:1200px;margin:0 auto;padding:24px 28px 60px}
+
+/* ── Progress Panel ── */
+.run-panel{
+  background:var(--surf);border:1px solid var(--border);padding:28px 32px;margin-bottom:24px;
+}
+.run-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.run-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.1em;color:var(--red)}
+.run-desc{font-size:13px;font-weight:300;color:var(--muted);max-width:600px;line-height:1.5;margin-bottom:20px}
+
+.run-btn{
+  background:var(--red);color:var(--white);border:none;padding:13px 28px;
+  font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.18em;
+  text-transform:uppercase;cursor:pointer;transition:background .15s;
+}
+.run-btn:hover{background:var(--red2)}
+.run-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.progress-wrap{display:none;margin-top:20px}
+.progress-wrap.on{display:block}
+.progress-bar-outer{
+  width:100%;height:6px;background:var(--surf3);border:1px solid var(--border);overflow:hidden;
+}
+.progress-bar-inner{height:100%;background:var(--red);width:0;transition:width .3s ease}
+.progress-info{display:flex;justify-content:space-between;margin-top:8px}
+.progress-pct{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--white)}
+.progress-detail{font-size:12px;font-weight:300;color:var(--muted)}
+.progress-current{font-size:12px;color:var(--muted);margin-top:4px;font-weight:300}
+
+/* ── Stats Row ── */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px}
+.stat{background:var(--surf);border:1px solid var(--border);padding:14px 16px}
+.stat-v{font-family:'Bebas Neue',sans-serif;font-size:24px;line-height:1;margin-bottom:3px;color:var(--white)}
+.stat-v.red{color:var(--red)}
+.stat-v.green{color:var(--good)}
+.stat-v.warn{color:var(--warn)}
+.stat-l{font-size:.55rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2)}
+
+/* ── Bulk Actions ── */
+.bulk-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--surf2);border:1px solid var(--border);padding:10px 16px;margin-bottom:12px;
+}
+.bulk-left{display:flex;align-items:center;gap:12px}
+.bulk-label{font-size:.58rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.bulk-btn{
+  background:transparent;border:1px solid var(--border);padding:7px 14px;
+  font-size:.58rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.bulk-btn:hover{color:var(--white);border-color:rgba(192,57,43,.5)}
+.bulk-btn.approve{background:rgba(58,170,116,.08);border-color:rgba(58,170,116,.3);color:var(--good)}
+.bulk-btn.approve:hover{background:rgba(58,170,116,.15);border-color:rgba(58,170,116,.5)}
+
+/* ── Filter Tabs ── */
+.filter-tabs{display:flex;gap:4px;margin-bottom:16px}
+.ftab{
+  background:transparent;border:1px solid var(--border);padding:6px 14px;
+  font-size:.58rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.ftab:hover{color:var(--off)}
+.ftab.on{color:var(--white);background:rgba(192,57,43,.12);border-color:rgba(192,57,43,.5)}
+
+/* ── Results Table ── */
+.results-table{width:100%;border-collapse:collapse}
+.results-table th{
+  background:var(--surf2);border:1px solid var(--border);padding:10px 14px;
+  font-size:.58rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted2);text-align:left;position:sticky;top:58px;z-index:10
+}
+.results-table td{
+  border:1px solid var(--border2);padding:12px 14px;font-size:13px;
+  background:var(--surf);vertical-align:middle;
+}
+.results-table tr:hover td{background:rgba(255,255,255,.015)}
+.results-table tr.approved td{opacity:.4}
+.results-table tr.dismissed td{opacity:.25}
+
+.item-name{font-weight:500;color:var(--white);margin-bottom:2px}
+.item-cat{font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bh-match{font-size:11px;color:var(--muted);font-weight:300;line-height:1.4;max-width:280px}
+
+.price{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.03em}
+.price-current{color:var(--muted)}
+.price-proposed{color:var(--white)}
+.price-diff{font-size:12px;font-weight:600;margin-top:2px}
+.price-diff.up{color:var(--red2)}
+.price-diff.down{color:var(--good)}
+.price-diff.same{color:var(--muted)}
+
+.status-badge{
+  display:inline-block;font-size:.55rem;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 8px;border:1px solid;
+}
+.s-found{border-color:rgba(58,170,116,.4);color:var(--good)}
+.s-not_found{border-color:rgba(232,228,221,.15);color:var(--muted)}
+.s-error{border-color:rgba(192,57,43,.4);color:var(--red2)}
+.s-approved{border-color:rgba(58,170,116,.4);color:var(--good);background:rgba(58,170,116,.08)}
+.s-dismissed{border-color:rgba(232,228,221,.1);color:var(--muted2)}
+
+.link-col{display:flex;flex-direction:column;gap:4px}
+.verify-link{
+  display:inline-flex;align-items:center;gap:4px;padding:4px 8px;
+  font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);text-decoration:none;border:1px solid var(--border);
+  transition:all .15s;white-space:nowrap;
+}
+.verify-link:hover{color:var(--white);border-color:rgba(192,57,43,.5)}
+.verify-link.bh{border-color:rgba(212,146,42,.3);color:var(--warn)}
+.verify-link.bh:hover{border-color:rgba(212,146,42,.6)}
+
+.act-col{display:flex;gap:4px}
+.act-btn{
+  background:transparent;border:1px solid var(--border);padding:6px 12px;
+  font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.act-btn:hover{color:var(--white);border-color:rgba(192,57,43,.5)}
+.act-btn.approve-btn{border-color:rgba(58,170,116,.3);color:var(--good)}
+.act-btn.approve-btn:hover{background:rgba(58,170,116,.08);border-color:rgba(58,170,116,.5)}
+
+.edit-price{
+  background:var(--surf3);border:1px solid var(--border);padding:5px 8px;
+  color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:15px;
+  width:90px;outline:none;text-align:right;
+}
+.edit-price:focus{border-color:rgba(192,57,43,.5)}
+
+.empty-msg{
+  padding:48px 24px;text-align:center;
+}
+.empty-msg h3{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.1em;color:var(--muted);margin-bottom:5px}
+.empty-msg p{font-size:12px;font-weight:300;color:var(--muted2)}
+
+.toast{
+  position:fixed;bottom:20px;right:20px;background:var(--red);color:var(--white);
+  padding:9px 16px;font-family:'Bebas Neue',sans-serif;font-size:14px;
+  letter-spacing:.14em;text-transform:uppercase;opacity:0;transform:translateY(8px);
+  transition:opacity .2s,transform .2s;pointer-events:none;z-index:999;
+}
+.toast.on{opacity:1;transform:translateY(0)}
+
+@media(max-width:900px){
+  .container{padding:14px 12px 60px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .results-table{display:block;overflow-x:auto}
+  .run-panel{padding:18px}
+  header{padding:0 14px 0 11px;height:50px}
+  .brand-img{height:26px}
+  .brand-divider{margin:0 10px}
+}
+</style>
+</head>
+<body>
+
+<div class="accent-line"></div>
+
+<header>
+  <div class="brand">
+    <a href="/">
+      <img src="/logo.png" alt="HIGHLANDMEDIA" class="brand-img">
+    </a>
+    <div class="brand-divider"></div>
+    <span class="brand-sub">Price Check</span>
+  </div>
+  <a href="/" class="back-link">← Back to Inventory</a>
+</header>
+
+<div class="container">
+
+  <!-- Run Panel -->
+  <div class="run-panel">
+    <div class="run-hdr">
+      <div class="run-title">Annual Replacement Value Update</div>
+    </div>
+    <div class="run-desc">
+      Searches B&H Photo for current pricing on each inventory item. Results are queued for your review — nothing updates until you approve.
+      Each item is searched one at a time to avoid rate limiting. Typical run takes 2–5 minutes depending on inventory size.
+    </div>
+    <button class="run-btn" id="startBtn" onclick="startPriceCheck()">Start Price Check</button>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-outer">
+        <div class="progress-bar-inner" id="progressBar"></div>
+      </div>
+      <div class="progress-info">
+        <span class="progress-pct" id="progressPct">0%</span>
+        <span class="progress-detail" id="progressDetail">Initializing…</span>
+      </div>
+      <div class="progress-current" id="progressCurrent"></div>
+    </div>
+  </div>
+
+  <!-- Missing Replacement Values -->
+  <div class="run-panel" id="missingPanel" style="display:none;margin-bottom:16px;padding:18px 24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.1em;color:var(--warn);margin-bottom:4px">
+          <span id="missingCount">0</span> Items Missing Replacement Value
+        </div>
+        <div style="font-size:12px;font-weight:300;color:var(--muted)">These items have a purchase cost but no replacement value. Copy cost → replacement to fill them in.</div>
+      </div>
+      <button class="run-btn" style="background:var(--warn);padding:10px 22px;font-size:14px" onclick="fillMissingFromCost()">Use Purchase Cost →</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow" style="display:none">
+    <div class="stat"><div class="stat-v" id="stTotal">0</div><div class="stat-l">Total Checked</div></div>
+    <div class="stat"><div class="stat-v green" id="stFound">0</div><div class="stat-l">Prices Found</div></div>
+    <div class="stat"><div class="stat-v" id="stNotFound">0</div><div class="stat-l">Not Found</div></div>
+    <div class="stat"><div class="stat-v warn" id="stPending">0</div><div class="stat-l">Pending Review</div></div>
+    <div class="stat"><div class="stat-v red" id="stErrors">0</div><div class="stat-l">Errors</div></div>
+  </div>
+
+  <!-- Filter + Bulk Actions -->
+  <div id="reviewSection" style="display:none">
+    <div class="bulk-bar">
+      <div class="bulk-left">
+        <span class="bulk-label">Bulk Actions</span>
+        <button class="bulk-btn approve" onclick="approveAll()">✓ Approve All Found</button>
+        <button class="bulk-btn" id="retryBtn" onclick="retryNotFound()" style="display:none">↻ Retry Not Found (Shopping)</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="ftab on" data-f="all" onclick="setFilter('all')">All</button>
+        <button class="ftab" data-f="found" onclick="setFilter('found')">Found</button>
+        <button class="ftab" data-f="not_found" onclick="setFilter('not_found')">Not Found</button>
+        <button class="ftab" data-f="approved" onclick="setFilter('approved')">Approved</button>
+        <button class="ftab" data-f="dismissed" onclick="setFilter('dismissed')">Dismissed</button>
+      </div>
+    </div>
+
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Equipment</th>
+          <th>B&H Match</th>
+          <th>Current Value</th>
+          <th>Proposed Value</th>
+          <th>Difference</th>
+          <th>Verify</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+
+    <div class="empty-msg" id="emptyMsg" style="display:none">
+      <h3>No Results</h3>
+      <p>Run a price check or adjust filters.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TAXONOMY = {};
+let allResults = [];
+let currentFilter = 'all';
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (r.status === 401) { window.location.href = '/'; throw new Error('Unauthorized'); }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// Load taxonomy for category labels
+async function loadTaxonomy() {
+  try {
+    const tax = await api('/api/taxonomy');
+    Object.assign(TAXONOMY, tax);
+  } catch {}
+}
+
+// ── Start Price Check ────────────────────────────────────────────────────────
+async function startPriceCheck() {
+  const btn = document.getElementById('startBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+
+  try {
+    const { batchId, totalItems } = await api('/api/price-check/start', { method: 'POST' });
+
+    document.getElementById('progressWrap').classList.add('on');
+    document.getElementById('progressDetail').textContent = `0 / ${totalItems} items`;
+
+    // Process items one by one with a delay to avoid hammering B&H
+    let done = false;
+    while (!done) {
+      const result = await api('/api/price-check/process-next', { method: 'POST' });
+      done = result.done;
+
+      if (!done) {
+        document.getElementById('progressBar').style.width = result.progress + '%';
+        document.getElementById('progressPct').textContent = result.progress + '%';
+        document.getElementById('progressDetail').textContent =
+          `${result.total - result.remaining} / ${result.total} items`;
+        document.getElementById('progressCurrent').textContent =
+          `${result.found ? '✓' : '✗'} ${result.processed}` +
+          (result.found ? ` — $${result.price.toFixed(2)}` : ' — not found');
+
+        // Delay between requests (1.5s to be polite to B&H)
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressPct').textContent = '100%';
+    document.getElementById('progressDetail').textContent = 'Complete';
+    document.getElementById('progressCurrent').textContent = '';
+
+    btn.textContent = 'Run Again';
+    btn.disabled = false;
+
+    await loadResults();
+  } catch (e) {
+    showToast('Error: ' + e.message);
+    btn.textContent = 'Start Price Check';
+    btn.disabled = false;
+  }
+}
+
+// ── Load Results ─────────────────────────────────────────────────────────────
+async function loadResults() {
+  try {
+    const { results, stats } = await api('/api/price-check/results');
+    allResults = results;
+
+    document.getElementById('statsRow').style.display = '';
+    document.getElementById('reviewSection').style.display = '';
+    document.getElementById('stTotal').textContent = stats.total;
+    document.getElementById('stFound').textContent = stats.found;
+    document.getElementById('stNotFound').textContent = stats.notFound;
+    document.getElementById('stErrors').textContent = stats.errors;
+
+    const pendingCount = results.filter(r => r.status === 'found').length;
+    document.getElementById('stPending').textContent = pendingCount;
+
+    renderResults();
+    updatePendingCount();
+  } catch {}
+}
+
+function renderResults() {
+  const filtered = currentFilter === 'all'
+    ? allResults
+    : allResults.filter(r => r.status === currentFilter);
+
+  const tbody = document.getElementById('resultsBody');
+  const empty = document.getElementById('emptyMsg');
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(r => {
+    const cat = TAXONOMY[r.category];
+    const catLabel = cat ? `${cat.icon} ${cat.label}` : r.category || '';
+    const isResolved = r.status === 'approved' || r.status === 'dismissed';
+    const rowClass = isResolved ? r.status : '';
+
+    const current = r.current_value || 0;
+    const proposed = r.proposed_value || 0;
+    const diff = proposed - current;
+    const diffPct = current > 0 ? ((diff / current) * 100).toFixed(1) : '—';
+    const diffClass = diff > 0 ? 'up' : diff < 0 ? 'down' : 'same';
+    const diffSign = diff > 0 ? '+' : '';
+
+    const bhUrl = r.source_url || `https://www.bhphotovideo.com/c/search?q=${encodeURIComponent(r.asset_name)}`;
+    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(r.asset_name + ' price')}`;
+
+    const statusMap = {
+      found: '<span class="status-badge s-found">Found</span>',
+      not_found: '<span class="status-badge s-not_found">Not Found</span>',
+      error: '<span class="status-badge s-error">Error</span>',
+      approved: '<span class="status-badge s-approved">Approved</span>',
+      dismissed: '<span class="status-badge s-dismissed">Skipped</span>',
+    };
+
+    return `<tr class="${rowClass}" data-id="${r.id}">
+      <td>
+        <div class="item-name">${esc(r.asset_name)}</div>
+        <div class="item-cat">${catLabel}</div>
+      </td>
+      <td><div class="bh-match">${r.source_name ? esc(r.source_name) : '<span style="color:var(--muted2)">—</span>'}</div></td>
+      <td><div class="price price-current">$${current.toFixed(2)}</div></td>
+      <td>${r.status === 'found' && !isResolved
+        ? `<input class="edit-price" type="number" step="0.01" value="${proposed.toFixed(2)}" onchange="updateProposed(${r.id}, this.value)">`
+        : `<div class="price price-proposed">${proposed > 0 ? '$' + proposed.toFixed(2) : '—'}</div>`
+      }</td>
+      <td>${proposed > 0 ? `<div class="price-diff ${diffClass}">${diffSign}$${Math.abs(diff).toFixed(2)} (${diffSign}${diffPct}%)</div>` : '—'}</td>
+      <td>
+        <div class="link-col">
+          <a href="${bhUrl}" target="_blank" rel="noopener" class="verify-link bh">B&H Listing →</a>
+          <a href="${googleUrl}" target="_blank" rel="noopener" class="verify-link">Google Search →</a>
+        </div>
+      </td>
+      <td>${statusMap[r.status] || r.status}</td>
+      <td>${r.status === 'found' ? `<div class="act-col">
+        <button class="act-btn approve-btn" onclick="approve(${r.id})">✓ Approve</button>
+        <button class="act-btn" onclick="dismiss(${r.id})">Skip</button>
+      </div>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.ftab').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+  renderResults();
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+async function approve(id) {
+  try {
+    await api(`/api/price-check/approve/${id}`, { method: 'POST' });
+    const r = allResults.find(r => r.id === id);
+    if (r) r.status = 'approved';
+    renderResults();
+    showToast('Approved — replacement value updated');
+    updatePendingCount();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function dismiss(id) {
+  try {
+    await api(`/api/price-check/dismiss/${id}`, { method: 'POST' });
+    const r = allResults.find(r => r.id === id);
+    if (r) r.status = 'dismissed';
+    renderResults();
+    showToast('Skipped');
+    updatePendingCount();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function approveAll() {
+  const count = allResults.filter(r => r.status === 'found').length;
+  if (!count) { showToast('Nothing to approve'); return; }
+  if (!confirm(`Apply all ${count} found price updates to inventory?`)) return;
+
+  try {
+    await api('/api/price-check/approve-all', { method: 'POST' });
+    allResults.forEach(r => { if (r.status === 'found') r.status = 'approved'; });
+    renderResults();
+    showToast(`${count} prices updated`);
+    updatePendingCount();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+async function retryNotFound() {
+  const notFoundCount = allResults.filter(r => r.status === 'not_found').length;
+  if (!notFoundCount) { showToast('Nothing to retry'); return; }
+  if (!confirm(`Retry ${notFoundCount} not-found items using Google Shopping? This uses additional Serper credits.`)) return;
+
+  try {
+    const { count } = await api('/api/price-check/retry-not-found', { method: 'POST' });
+    if (!count) { showToast('Nothing to retry'); return; }
+
+    document.getElementById('progressWrap').classList.add('on');
+    document.getElementById('progressDetail').textContent = `Retrying ${count} items with Shopping fallback…`;
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressPct').textContent = '0%';
+
+    const btn = document.getElementById('retryBtn');
+    btn.disabled = true;
+    btn.textContent = 'Retrying…';
+
+    let done = false;
+    while (!done) {
+      const result = await api('/api/price-check/process-next', { method: 'POST' });
+      done = result.done;
+
+      if (!done) {
+        document.getElementById('progressBar').style.width = result.progress + '%';
+        document.getElementById('progressPct').textContent = result.progress + '%';
+        document.getElementById('progressDetail').textContent =
+          `${result.total - result.remaining} / ${result.total} items`;
+        document.getElementById('progressCurrent').textContent =
+          `${result.found ? '✓' : '✗'} ${result.processed}` +
+          (result.found ? ` — $${result.price.toFixed(2)}` : ' — not found') +
+          (result.isRetry ? ' (shopping)' : '');
+
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressPct').textContent = '100%';
+    document.getElementById('progressDetail').textContent = 'Retry complete';
+    document.getElementById('progressCurrent').textContent = '';
+
+    btn.textContent = '↻ Retry Not Found (Shopping)';
+    btn.disabled = false;
+
+    await loadResults();
+  } catch (e) {
+    showToast('Error: ' + e.message);
+    const btn = document.getElementById('retryBtn');
+    btn.textContent = '↻ Retry Not Found (Shopping)';
+    btn.disabled = false;
+  }
+}
+
+async function updateProposed(id, value) {
+  try {
+    await api(`/api/price-check/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ proposed_value: parseFloat(value) || 0 })
+    });
+    const r = allResults.find(r => r.id === id);
+    if (r) r.proposed_value = parseFloat(value) || 0;
+    // Don't re-render, the input would lose focus
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+function updatePendingCount() {
+  const pending = allResults.filter(r => r.status === 'found').length;
+  document.getElementById('stPending').textContent = pending;
+  const notFound = allResults.filter(r => r.status === 'not_found').length;
+  const retryBtn = document.getElementById('retryBtn');
+  if (retryBtn) retryBtn.style.display = notFound > 0 ? '' : 'none';
+}
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+let toastT;
+function showToast(m) {
+  const t = document.getElementById('toast');
+  t.textContent = m;
+  t.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('on'), 2600);
+}
+
+// ── Missing Replacement Values ───────────────────────────────────────────────
+async function checkMissingReplace() {
+  try {
+    const assets = await api('/api/assets');
+    const missing = assets.filter(a => (!a.replacement_value || a.replacement_value === 0) && a.purchase_cost > 0);
+    const panel = document.getElementById('missingPanel');
+    const count = document.getElementById('missingCount');
+    if (panel && count) {
+      if (missing.length > 0) {
+        panel.style.display = '';
+        count.textContent = missing.length;
+      } else {
+        panel.style.display = 'none';
+      }
+    }
+  } catch {}
+}
+
+async function fillMissingFromCost() {
+  try {
+    const assets = await api('/api/assets');
+    const missing = assets.filter(a => (!a.replacement_value || a.replacement_value === 0) && a.purchase_cost > 0);
+    if (!missing.length) { showToast('No items to update'); return; }
+    if (!confirm(`Set replacement value = purchase cost for ${missing.length} item(s)?`)) return;
+    let n = 0;
+    for (const a of missing) {
+      try {
+        await api('/api/assets/' + a.id, {
+          method: 'PATCH',
+          body: JSON.stringify({ replacement_value: a.purchase_cost })
+        });
+        n++;
+      } catch {}
+    }
+    showToast(n + ' replacement values updated');
+    await checkMissingReplace();
+  } catch (e) { showToast('Error: ' + e.message); }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(async function() {
+  await loadTaxonomy();
+  await checkMissingReplace();
+  await loadResults(); // show any existing results from prior run
+})();
+</script>
+</body>
+</html>
