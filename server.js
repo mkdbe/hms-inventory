@@ -855,5 +855,5 @@ app.get('/duplicates', (req, res) => {
   res.sendFile(path.join(__dirname, 'duplicates.html'));
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/', (req, res) => { res.set('Cache-Control', 'no-cache, no-store, must-revalidate'); res.sendFile(path.join(__dirname, 'index.html')); });
 app.listen(PORT, () => console.log(`HMS Inventory on port ${PORT}`));
