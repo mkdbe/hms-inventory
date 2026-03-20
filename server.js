@@ -7,8 +7,8 @@ const app = express();
 const PORT = 3003;
 
 // ── Credentials ───────────────────────────────────────────────────────────────
-const AUTH_USER = process.env.HMS_USER || 'REDACTED';
-const AUTH_PASS = process.env.HMS_PASS || 'REDACTED';
+const AUTH_USER = process.env.INVENTORY_USER;
+const AUTH_PASS = process.env.INVENTORY_PASS;
 
 // ── Serper API Key ────────────────────────────────────────────────────────────
 const SERPER_API_KEY = process.env.SERPER_API_KEY || '';
