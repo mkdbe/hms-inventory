@@ -2,9 +2,9 @@ const express = require('express');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const path = require('path');
-
 const app = express();
 const PORT = 3003;
+require('dotenv').config();
 
 // ── Credentials ───────────────────────────────────────────────────────────────
 const AUTH_USER = process.env.INVENTORY_USER;
