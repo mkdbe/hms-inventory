@@ -1,6 +1,25 @@
+# Dependencies
 node_modules/
+package-lock.json
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
 *.bak
 *.bak2
-*.bak-working
-*.broken
-inventory.db
+*.backup
